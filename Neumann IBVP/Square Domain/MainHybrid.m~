@@ -1,0 +1,349 @@
+clear
+tic
+SL=zeros(1,4);
+nEdge=zeros(1,4);
+h=zeros(1,4);
+CosEdgeAngle=zeros(1,4);
+SinEdgeAngle=zeros(1,4);
+CL=zeros(1,4);
+cEdge=zeros(1,4);
+
+N=2048; %no. of time steps
+M=512;%no. of space steps 
+NQ=8; %Define global direction set and elements multiples of 4 give symmetry in each quadrant
+Freq = 100; % Frequnecy switch value 
+BCc=512; %Boundary condition constant
+BCt0=0.25;
+%PSx=[0.5]; PSy=[0.5]; % Point Source Coords
+tht0=7*pi/16; %Plane wave BC incoming angle
+
+%Integration interval time + space
+c=1; %Wave speed
+t0 = 0;  T = 2; %Time interval
+dt=T/N; %%% time step size 
+t = linspace(t0,T,N);
+lambda= 10^(-8/N);%dt^(3/(N-1))%0.996;% % ; %%% lambda < 1, radius of contour 
+
+NP=1; %number of interior points = NP^2
+IPx=0.25;
+IPy=0.5;
+
+% IPx=linspace(0,1,NP+2); 
+% IPy=linspace(0,1,NP+2);
+% 
+% IPx = IPx(2:end-1);% Doesn't include points on the boundary
+% IPy = IPy(2:end-1);
+% 
+% [IPX,IPY] =meshgrid(IPx,IPy); %gird for square
+
+%%% complex wave numbers found by bdf2 scheme
+sl=zeros(N,1);
+
+for m=1:N
+    z=lambda*exp((-2i*pi*(m-1))/(N)); %calculates the index numbers  
+    BDF2= (0.5)*(z^2 -4*z+3);
+%     BE = 1-z; %Backward Euler 
+%     Trap = 2*(1-z)/(1+z);
+    sl(m)=BDF2/dt; %complex wave numbers from l=0:N-1. 
+end
+
+k=1i*sl; %Rewrite the complex wave numbers:
+ 
+ %%%%%%%%%%%%%% Define variables required for polygon/ square 
+ xv=[0 1 1 0];% 
+ yv=[0 0 1 1];
+
+%  
+%  xv = [0 1 1 0.5 0.5 0];
+%  yv = [0 0 1 1 0.5 0.5];
+%  
+
+ 
+NVert=length(xv); %no. of vertices of polygons 
+
+for j=1:NVert
+    jp = j+1;
+    if (jp > NVert)
+        jp=jp-NVert;
+    end
+    SL(j)=sqrt((xv(j)-xv(jp))^2+(yv(j)-yv(jp))^2); %side lengths 
+    CL(j)=sum(SL(1:j-1)); %cummalative length 
+    CosEdgeAngle(j)=(xv(jp)-xv(j))/SL(j);
+    SinEdgeAngle(j)=(yv(jp)-yv(j))/SL(j);
+    
+end
+
+L=sum(SL); %perimeter of polygon
+dx = L/M; %average length of element.
+x=dx:dx:4;
+
+for j=1:NVert
+    nEdge(j) = round(SL(j)/dx); %Number of elements on each side
+    cEdge(j)=sum(nEdge(1:j-1)); % cummaltive number of elements on edge
+    h(j)=SL(j)/nEdge(j); %stepsize on each side
+    
+   for je=1:nEdge(j) 
+       
+        a(je+cEdge(j))=CL(j)+(je-1)*h(j); %element end points 
+        b(je+cEdge(j))=CL(j)+je*h(j);
+       
+        ax(je+cEdge(j))=xv(j)+h(j)*CosEdgeAngle(j)*(je-1);
+        ay(je+cEdge(j))=yv(j)+h(j)*SinEdgeAngle(j)*(je-1); %coordinates of elements
+
+        bx(je+cEdge(j))=xv(j)+h(j)*CosEdgeAngle(j)*(je);
+        by(je+cEdge(j))=yv(j)+h(j)*SinEdgeAngle(j)*(je);
+              
+   end
+   for je=1:nEdge(j) 
+       jt = je +cEdge(j);       
+       r = sqrt((bx(jt)-ax(jt))^2 + (by(jt)-ay(jt))^2); 
+       txq(jt) = (bx(jt) - ax(jt))/r;
+       tyq(jt) = (by(jt) - ay(jt))/r;   
+   end
+end
+nxq = -tyq; %% cartesian coordinates of unit normal vector of q. 
+nyq = txq;  
+
+CPi= 0.5*(a+b); %collocation points 
+xi= 0.5*(ax+bx); %collocation cartesian coordinates
+yi= 0.5*(ay+by); 
+
+addpath(genpath('CQBEM - Wave Eqn'));
+addpath(genpath('DEAFiles')); 
+
+stage =1
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% BOUNDARY CONDITIONS AND FFT(BC) 
+vBC = zeros(M,N);
+utildeB = zeros(M,N);
+utildeBC=zeros(M,N);
+vBound = zeros(M,N);
+BDSum = zeros(M,N);
+for m=1:NVert
+    for mv =1:nEdge(m) 
+        mt=mv+cEdge(m);
+        for nn=1:N    
+            n=nn-1;
+            tn = n*dt;
+            l=(lambda^n);
+%             %BC for wave on left Edge
+            if m==NVert 
+                vBC(mt,nn)= l*ftilde(xi(mt),yi(mt),tht0,tn,c,BCc,BCt0);  
+            else
+                vBC(mt,nn) = 0;
+            end
+%             %BC for point source when RHS = delta(x)delta(t)
+% %             vBC(mt,nn)= l*(1/(2*pi))*dGdn(tn,c,xi(mt),yi(mt),nxq(mt),nyq(mt),PSx,PSy);   
+        end
+    end
+end
+%BC for point source calcualted in this script file, when RHS = delta(x)f0(t)
+% FDM_Gc;
+
+for m =1:M 
+    utildeBC(m,:)=fft(vBC(m,:)); %FFT of BC
+end
+%%%%%%%%%%%%%%%%%%%%%
+%Alternative method for fft Ftilde 
+% Alt_fftFtilde;
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%% HYBRID METHOD
+%%
+kdiff = 10000*ones((N/2)+1,1);
+utildeDEA=zeros(M,N);
+NewTj= zeros(M,1);
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%% CALCULATE THE BOUNDARY SOLUTION FOR LOW FREQUENCIES VIA CQBEM
+%%%%%%%%%%%%% 
+% parfor ll =1:(N/2)+1 
+%     if abs(real(k(ll))) <= Freq %  
+%         utildeB(:,ll) = CQBEM_par_Calc(k(ll),utildeBC(:,ll),M,NVert,nEdge,cEdge,CPi,xi,yi,a,b,xv,yv,CosEdgeAngle,SinEdgeAngle,CL,nxq,nyq); %CQBEM 
+%         kdiff(ll) = Freq-abs(real(k(ll))); %Finds difference between the freq used in CQBEM and the switch freq
+%     end
+% end
+stage =2
+Maxkim=max(imag(k));
+for ll=1:(N/2)+1
+        if imag(k(ll))<0.5*Maxkim
+            kdiff(ll) = Freq-abs(real(k(ll))); %Finds difference between the freq used in CQBEM and the switch freq   
+        end
+end
+[val,pos] = min(kdiff(kdiff>=0)); %finds the freq value and position in k, for the freq clostest to the switch freq k*
+kfreq=k(pos);
+parfor ll =1:(N/2)+1 
+    if abs(real(k(ll))) <=  abs(real(kfreq)) %  
+        utildeB(:,ll) = CQBEM_par_Calc(k(ll),utildeBC(:,ll),M,NVert,nEdge,cEdge,CPi,xi,yi,a,b,xv,yv,CosEdgeAngle,SinEdgeAngle,CL,nxq,nyq); %CQBEM 
+    end
+end
+utildeB(:,N:-1:(N/2)+2)=conj(utildeB(:,2:(N/2)));
+Maxutilde = utildeB(:,pos); %Boundary solution at kfreq.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CALCULATE GAMMA THE COEFFICENTS FROM PHASE FUNCTION USING LAST
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CQBEM FREQUENCY SOLUTIONS 
+stage =3 
+GammaScript; 
+% % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % %%%%%%%%%%%%% CALCULATE THE BOUNDARY SOLUTION FOR HIGH FREQUENCIES VIA DEA
+% xexact = (1/(1i*(real(k(pos)))))*log(Maxutilde(M-1)/AmpTest(NQ*(2*M-3)+1)); % 
+% xexact = ((1/(1i*(real(k(pos)))))*log(Maxutilde(M-1)/AmpTest(4*M-5))); % 
+%Gammaexact = Gamma(NQ*(2*M-3)+1);
+
+%%
+stage=4
+AmpS=zeros(length(VecInf),N);
+parfor ll=1:N  
+    if abs(real(k(ll))) > abs(real(kfreq)) %&& abs(imag(k(ll))<600)exp(-imag(GammaS(:,).*(real(k(pos)))).*
+%         ll
+        %Jacobs EDIT: Unsure if line below is correct but gives correct interior sol.exp(-imag(Gammaexact)*(real(k(pos))))*
+        %Line198: was orginal line of code but only works for NQ=2, error in line 493. 
+        VecInf =DEA_par_Calc2(dx,k(ll),xv,yv,utildeBC(:,ll),NQ,-tht0);
+%         VecInf =DEA_par_Calc(dx,k(ll),xv,yv,exp(-imag(Gammaexact)*(real(k(pos))))*utildeBC(:,ll),NQ);
+          % below: the DEA Calc for the PS.% Above: wave along the left edge
+%         VecInf= DEA_Calc_PS(dx,k(ll),xv,yv,utildeBC(:,ll),PSx,PSy,NQ,NVert); %VecInf: boundary Density, Tj: No. of directions pointing into the domain along edge j
+        
+        Ampp = sqrt(VecInf(ExtEdge>0));        
+%         command for single subdomain - comment out and replace by 4 lines
+%         below for multi-domain DEA case
+     %  Amp=Ampp;
+              
+%         Reorder edges from DEA 1,5,6,2,3,4 to BEM 1,2,3,4,5,6
+%          Amp1 =Ampp(1:Tj(1,1)*nSideEls(1,1)); %edge 1    
+%          Amp3 =Ampp(Tj(1,1)*nSideEls(1,1)+1:sum(Tj(1,1:end).*nSideEls(1,1:end))-Tj(1,2)*nSideEls(1,2));
+%          Amp2 =Ampp(sum(Tj(1,1:end).*nSideEls(1,1:end))-Tj(1,2)*nSideEls(1,2)+1:end);
+%          Amp=[Amp1;Amp2;Amp3];
+
+        AmpS(:,ll) = Ampp;
+
+    end
+end
+ %%
+        %%%%%THIS PART CANT GO INTO PAR LOOP
+ 
+%    s=zeros(1,M);     
+for ll=1:N 
+    if abs(real(k(ll))) > abs(real(kfreq))
+         for i=1:NVert
+%              s(CPGlobal(i)+1:CPGlobal(i+1))=CPi(CPGlobal(i)+1:CPGlobal(i+1)) - a(CPGlobal(i)+1);
+             for iv=1:nEdge(i)
+                 it=iv+cEdge(i);
+                 utildeDEA(it,ll) =0;
+                 for n=1:NewTj(it) %Solution for wave on left edge % Sums solutions of utildeDEA from each direction asocciated at coll pt it.
+                     utildeDEA(it,ll) = utildeDEA(it,ll) + AmpS(C(it)+n,ll)*exp(1i*(real(k(ll)))*((real(Gamma(C(it)+n))) + sin(ThetaLocp(i,n))*CPi(it)))*exp(-imag(Gamma(C(it)+n))*real(k(pos))/real(k(ll)));
+%                      Below: Solution for general polygons/ Point source
+%                      utildeDEA(it,ll) = utildeDEA(it,ll) + AmpS(C(it)+n,ll)*exp(1i*(real(k(ll)))*(GammaS(i,n)) + sin(ThetaLocp(i,n))*CPi(it));
+%                      utildeDEA(it,ll) = utildeDEA(it,ll) + AmpS(C(it)+n,ll)*exp(1i*(abs(real(k(ll))))*((real(GammaS(i,n)) + sin(ThetaLocp(i,n))*(CPi(it)-CL(i)))));
+
+                 end
+             end
+         end
+         
+         utildeB(:,ll) = utildeDEA(:,ll); % Inputing the boundary solns from DEA into the overall boundary solution
+
+    end
+end 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%% INVERSE FFT OF THE BODUNARY SOLUTION AT ALL FREQUENCY POINTS
+Input=zeros(M,N);
+uBound=zeros(M,N);
+
+for m=1:M
+    Input(m,:) = (ifft(utildeB(m,:))); 
+end
+
+for n=1:N
+    uBound(:,n)=((lambda)^(1-n))*Input(:,n);
+end
+
+%%%%%%%%%%%% Exact solution
+% uExact = zeros(M,N);
+% for kk=1:N
+%     tn = (kk-1)*dt; 
+%     for j=1:M    
+%          uExact(j,kk)=0.5*(WaveEqSol(xi(j)-c*tn,BCc,BCt0)+WaveEqSol(xi(j)+c*tn,BCc,BCt0));
+%     end
+% end
+% figure
+% mesh(real(uExact)) 
+% figure
+% mesh(t,x,real(uBound))
+% mesh(t,CPi,real(uExact))
+% % %%%%%%%%%%%%%% Error Calculation 
+%Midpoint rule 
+%  Midpoint=zeros(M,N);
+%  for n=1:N    
+%      for i =1:M      
+%          Midpoint(i,n) = dt*dx*(uExact(i,n) - phi(i,n)).^2;
+%      end
+%      
+%  end
+% % 
+%  Error =(sum(sum(Midpoint)))^(0.5)
+%  Eabs = sqrt(dt*sum(max(abs(uExact - phi).').^2)) 
+% %  Max = max(max(real(phi)))
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%% CALCULATE THE INTERIOR SOLUTION AND POINT SOURCE SOLUTION 
+stage =5
+Hybrid_Interior_Calc; 
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%% CALCULATE POINT SOURCE SOLUTION 
+% utildeInterDEA=zeros(M,N);
+% utildeInter=zeros(M,N);
+% 
+% for ll=1:N 
+%     if abs(real(k(ll))) > Freq %&& abs(imag(k(ll))<600)
+%         ll
+%         
+%         Hybrid_Interior_Calc; % Edit to solve for point source and Comment out Interior solution above.
+%         
+%         
+%         
+%     else
+%          VecInf= DEA_Calc_PS(dx,k(ll),xv,yv,exp(-imag(xexact)*(real(k(pos))))*utildeBC(M,ll)); %VecInf: boundary Density
+%          
+%           Ampp = sqrt(VecInf(ExtEdge>0));        
+%         %command for single subdomain - comment out and replace by 4 lines
+%         %below for multi-domain DEA case
+%        Amp=Ampp;
+%               
+%         %Reorder edges from DEA 1,5,6,2,3,4 to BEM 1,2,3,4,5,6
+% %          Amp1 =Ampp(1:Tj(1,1)*nSideEls(1,1)); %edge 1    
+% %          Amp3 =Ampp(Tj(1,1)*nSideEls(1,1)+1:sum(Tj(1,1:end).*nSideEls(1,1:end))-Tj(1,2)*nSideEls(1,2));
+% %          Amp2 =Ampp(sum(Tj(1,1:end).*nSideEls(1,1:end))-Tj(1,2)*nSideEls(1,2)+1:end);
+% %          Amp=[Amp1;Amp2;Amp3];
+%  
+%         
+%          for i=1:NVert     
+%              for iv=1:nEdge(i)
+%                  it=iv+cEdge(i);
+%                  utildeDEA(it,ll) =0;
+%                  for n=1:NewTj(it) % Sums solutions of utildeDEA from each direction asocciated at coll pt it.
+%                      utildeDEA(it,ll) = utildeInterDEA(it,ll) + Amp(C(it)+n)*exp(1i*(real(k(ll)))*((real(Gamma(C(it)+n))) + sin(ThetaLocp(i,n))*CPi(it)));
+%                  end
+%              end
+%          end
+%         
+%          utildeInter(:,ll) = utildeDEA(:,ll); % Inputing the boundary solns from DEA into the overall boundary solution
+% 
+%     end
+% end 
+
+
+% %%%%%%% Calculate frequency bandlimit 
+% fqvec =[-N/(2*T):1/T:((N)/(2*T)-1)];
+% for j =1:M
+%     fftExact(j,:) =fftshift(fft(uExact(j,:)));
+% end 
+% %mesh(fqvec,CPi,real(fftExact))
+% plot(fqvec, real(fftExact(16,:)))
+% % 
+
+
+
+toc
+
