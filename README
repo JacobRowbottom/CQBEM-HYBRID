@@ -1,0 +1,70 @@
+% The following nest of folders contain the MATLAB code used within my Thesis 
+%for solving the 2D Wave equation via either a CQBEM or via the newly proposed Hybrid methhods as disucssed
+%in my Thesis. 
+
+%For any questions please email me at: jacob.rowbottom2017@my.ntu.ac.uk
+
+%Please copy the Raw data from the corresponding files you wish to use and
+%save as mfiles with the same names as the ones labelled here.
+
+%In each folder contains the Main Script file, named MainHybrid. The other files are the function files used within
+%each Script file. Each MainScript contains an annotated script file which
+%explains which each variable is computing.
+
+%For further understanding of the methodolgy behind the code we refer the
+%reader to Chapter 3 and Chapter 5 of my Thesis where it is discussed in greater detail.
+
+%The first folder named Neumann IBVP, considers solving the 2D homogeneous wave
+%equation subject to zero initial conditions and a Neumann boundary
+%condition along the left edge of the domain and zero ebverywhere else. 
+%The next subfolder considers solving the Neumann IBVP either
+%in a Square domain (or a domain consisting of one sub-domain) or the
+%L-shaped domain. The folders within each subfolder contain the folders
+%"CQBEM Files", "DEA Files" and "Gamma Files". These folders contain all
+%the function files which are used in the respective methods. "Gamma Files"
+%contains all the function files used to to determine the unknown
+%coefficents as part of the DEA based hybrid method. 
+
+%To implement the CQBEM, choose the value of the frequency we switch
+%between the BEM and the HFA in the hybird method to be larger than the
+%maximum value for the wavenumbers considered. This is defined as the
+%parameter "Freq" on line 21. 
+
+%Lines 14 - 37 are the parameters which need to be defined before running
+%the code. This includes Defining which Hybrid method is used to solve the wave equation.
+%To implement the DEA based hybrid method choose DEA=1, or DEA=0 to implement the SHFA based hybrid method
+%Here we also choose the number of discretisation points. The
+%constants that define the width and peak of the boudnary condition
+%bandwidth. The vertices of the domain considered and the interior point
+%coordinates.
+
+%Lines 91 - 100 define the mulitstep method. Uncomment the respective multistep method deseried to be used 
+%and edit line 98 accordingly. 
+
+%The function "F_BC" in Line 125 defines the Neumann boundary condition.
+%Please edit the function file to change the boundary condition considered.
+
+%The second folder named Point Source, considers solving the 2D inhomogeneous wave
+%equation subject to zero initial conditions and zero Neumann boundary
+%conditions.
+
+%To implement the CQBEM, choose the value of the frequency we switch
+%between the BEM and the HFA in the hybird method to be larger than the
+%maximum value for the wavenumbers considered. This is defined as the
+%parameter "Freq" on line 21. 
+
+%Lines 14 - 37 are the parameters which need to be defined before running
+%the code. This includes Defining which Hybrid method is used to solve the wave equation.
+%To implement the DEA based hybrid method choose DEA=1, or DEA=0 to implement the SHFA based hybrid method
+%Here we also choose the number of discretisation points. The
+%constants that define the width and peak of the boudnary condition
+%bandwidth. The vertices of the domain considered, the interior point
+%coordinates and the point source coordinates.
+
+%Lines 97 - 106 define the mulitstep method. Uncomment the respective multistep method deseried to be used 
+%and edit line 104 accordingly. 
+
+%The function "BC_P0" in Line 120 defines the Neumann boundary condition
+%for the Reverberant solution V. In this file contains the function "P0"
+%which defines the temporal source profile. Edit this file accodingly to
+%solve for the case when P0 is defined either as Equation (3.42) or as (5.34) in my Thesis.
